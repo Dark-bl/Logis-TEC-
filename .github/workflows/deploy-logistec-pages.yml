@@ -1,0 +1,72 @@
+name: Publicar LOGISTEC en GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Publicar sitio web
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v6
+
+      - name: Preparar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Preparar archivos públicos del sitio
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f index.html || {
+            echo "ERROR: No se encontró index.html en la raíz del repositorio."
+            exit 1
+          }
+
+          mkdir -p _site
+          cp index.html _site/index.html
+
+          # Copiar únicamente recursos web de primer nivel.
+          shopt -s nullglob
+          for file in ./*.css ./*.js ./*.png ./*.jpg ./*.jpeg ./*.webp ./*.svg ./*.ico ./*.gif ./*.woff ./*.woff2 ./*.ttf; do
+            [ -f "$file" ] && cp "$file" _site/
+          done
+
+          # Archivos web opcionales.
+          for file in ./404.html ./robots.txt ./sitemap.xml ./manifest.webmanifest ./favicon.ico; do
+            [ -f "$file" ] && cp "$file" _site/
+          done
+
+          # Conservar una carpeta de recursos solo si existe.
+          if [ -d assets ]; then
+            cp -R assets _site/assets
+          fi
+
+          echo "Archivos que se publicarán:"
+          find _site -maxdepth 2 -type f -print | sort
+
+      - name: Subir sitio como artefacto de Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Desplegar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
